@@ -4,3 +4,5 @@ target
 *.o
 *.cc
 *.so
+*.dll
+src/main/java/com/github/jbaiter/kenlm/jni

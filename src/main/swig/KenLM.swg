@@ -33,6 +33,160 @@ namespace lm {
 %nodefaultctor lm::base::Vocabulary;
 %nodefaultctor lm::base::Model;
 
+
+%{
+
+class Evaluator
+{
+private:
+    std::vector<char> ctx1;
+    std::vector<char> ctx2;
+    const lm::base::Model *model;
+    std::vector<float> probs;
+    size_t n_tokens;
+    size_t n_processed;
+
+    double absorb_prob(float value)
+    {
+        probs.push_back(value);
+        size_t sz = probs.size();
+        if (sz == probs.capacity())
+        {
+            size_t half = sz / 2;
+            std::nth_element(probs.begin(), probs.begin() + half, probs.end(), std::less<>());
+            double result = 0;
+            for (size_t i = half; i < sz; ++i)
+            {
+                result += probs[i];
+            }
+            n_processed += sz - half;
+            probs.erase(probs.begin() + half, probs.end());
+            return result;
+        }
+        return 0;
+    }
+
+    double finish_prob(size_t position)
+    {
+        size_t sz = probs.size();
+        size_t half = probs.capacity() / 2;
+        size_t num_ignored = std::min(std::min(position, half), sz);
+        std::nth_element(probs.begin(), probs.begin() + num_ignored, probs.end(), std::less<>());
+        double result = 0;
+        for (size_t i = num_ignored; i < sz; ++i)
+        {
+            result += probs[i];
+        }
+        n_processed += sz - num_ignored;
+        return result;
+    }
+
+public:
+    Evaluator(const lm::base::Model *model, size_t prob_size) : model(model), probs(prob_size * 2, 0.0f)
+    {
+        size_t state_sz = model->StateSize();
+        ctx1.resize(state_sz);
+        ctx2.resize(state_sz);
+    }
+
+    double evaluateSum(unsigned char *data_raw, size_t sz)
+    {
+        const size_t npos = StringPiece::npos;
+        const lm::base::Model &model = *this->model;
+        const lm::base::Vocabulary &vocabulary = model.BaseVocabulary();
+        const char *zero_data = static_cast<const char *>(model.BeginSentenceMemory());
+        ctx1.assign(zero_data, zero_data + model.StateSize());
+        void *ctx_cur = ctx1.data();
+        void *ctx_next = ctx2.data();
+        probs.clear();
+        n_processed = 0;
+
+        StringPiece data(reinterpret_cast<const char*>(data_raw), sz);
+        size_t tokens = 0;
+        double score = 0.0;
+        while (!data.empty())
+        {
+            size_t offset = data.find(' ');
+            StringPiece word;
+            if (offset == npos)
+            {
+                word = data;
+                data.clear();
+            }
+            else
+            {
+                word = data.substr(0, offset);
+                data = data.substr(offset + 1);
+            }
+            lm::WordIndex idx = vocabulary.Index(word);
+            lm::FullScoreReturn local_score = model.BaseFullScore(ctx_cur, idx, ctx_next);
+            score += local_score.prob;
+            tokens += 1;
+            std::swap(ctx_cur, ctx_next);
+        }
+        lm::FullScoreReturn eos_score = model.BaseFullScore(ctx_cur, vocabulary.EndSentence(), ctx_next);
+        score += eos_score.prob;
+        n_tokens = tokens;
+        return score;
+    }
+
+    double evaluateNoOutliers(unsigned char *data_raw, size_t sz, float outliers)
+    {
+        if (outliers == 0)
+        {
+            return evaluateSum(data_raw, sz);
+        }
+
+        if (outliers < 0 || outliers > 1)
+        {
+            return 0;
+        }
+
+        const size_t npos = StringPiece::npos;
+        const lm::base::Model &model = *this->model;
+        const lm::base::Vocabulary &vocabulary = model.BaseVocabulary();
+        const char *zero_data = static_cast<const char *>(model.BeginSentenceMemory());
+        ctx1.assign(zero_data, zero_data + model.StateSize());
+        void *ctx_cur = ctx1.data();
+        void *ctx_next = ctx2.data();
+        probs.clear();
+        n_processed = 0;
+
+        StringPiece data(reinterpret_cast<const char*>(data_raw), sz);
+        size_t tokens = 0;
+        double score = 0.0;
+        while (!data.empty())
+        {
+            size_t offset = data.find(' ');
+            StringPiece word;
+            if (offset == npos)
+            {
+                word = data;
+                data.clear();
+            }
+            else
+            {
+                word = data.substr(0, offset);
+                data = data.substr(offset + 1);
+            }
+            lm::WordIndex idx = vocabulary.Index(word);
+            lm::FullScoreReturn local_score = model.BaseFullScore(ctx_cur, idx, ctx_next);
+            score += absorb_prob(local_score.prob);
+            tokens += 1;
+            std::swap(ctx_cur, ctx_next);
+        }
+        lm::FullScoreReturn eos_score = model.BaseFullScore(ctx_cur, vocabulary.EndSentence(), ctx_next);
+        score += absorb_prob(eos_score.prob);
+        n_tokens = tokens;
+        return score + finish_prob(size_t(outliers * tokens));
+    }
+
+    size_t numNonOutlierTokens() const { return this->n_processed; }
+};
+%}
+
+%include "java/various.i"
+
 namespace lm::base {
     class Vocabulary {
     public:
@@ -52,6 +206,20 @@ namespace lm::base {
         lm::FullScoreReturn BaseFullScore(const void *in_state, const lm::WordIndex new_word, void *out_state) const;
     };
 };
+
+class Evaluator {
+public:
+    Evaluator(const lm::base::Model* model, size_t buffer);
+
+    %apply unsigned char *NIOBUFFER { unsigned char *data_raw };
+    double evaluateNoOutliers(unsigned char *data_raw, size_t sz, float outliers);
+
+    %apply unsigned char *NIOBUFFER { unsigned char *data_raw };
+    double evaluateSum(unsigned char *data_raw, size_t sz);
+
+    size_t numNonOutlierTokens() const;
+};
+
 
 namespace util {
     enum LoadMethod {

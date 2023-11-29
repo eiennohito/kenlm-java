@@ -6,6 +6,7 @@ import com.github.jbaiter.kenlm.jni.State;
 import com.github.jbaiter.kenlm.jni.Vocabulary;
 import com.github.jbaiter.kenlm.util.KenLMLoader;
 
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.function.Function;
@@ -27,6 +28,10 @@ public class Model {
 
     public Model(String path) throws ModelException {
         this(path, new Config());
+    }
+
+    public Model(Path path) throws ModelException {
+        this(path.toAbsolutePath().toString());
     }
 
     public Model(String path, Config config) throws ModelException {
@@ -163,5 +168,9 @@ public class Model {
         return fullScores(sentence, useBOS, useEOS)
             .mapToDouble(FullScoreReturn::getLogProbability)
             .sum();
+    }
+
+    public BufferEvaluator bufferEvaluator(int wordBuffer, int beamBuffer) {
+        return new BufferEvaluator(this.cModel, wordBuffer, beamBuffer);
     }
 }

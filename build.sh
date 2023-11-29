@@ -16,6 +16,10 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
         -dynamiclib \
         $objects -ldl -shared -lkenlm -lkenlm_util \
         -Wno-deprecated -pthread -o libkenlm-jni.dylib
+elif [[ "$OSTYPE" == "msys"* ]]; then
+    g++ $CXXFLAGS ./kenlm_wrap.cc \
+        $objects -static -static-libgcc -lkenlm -lkenlm_util -lz -lbz2 -llzma \
+        -Wno-deprecated -pthread -shared -o kenlm-jni.dll
 else
     g++ $CXXFLAGS ./kenlm_wrap.cc \
         $objects -ldl -shared -lkenlm -lkenlm_util \

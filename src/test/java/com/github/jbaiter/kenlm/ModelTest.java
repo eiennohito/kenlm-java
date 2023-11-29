@@ -3,7 +3,6 @@ package com.github.jbaiter.kenlm;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.net.URL;
 import java.util.Collection;
 
 import static org.junit.Assert.*;
@@ -13,7 +12,7 @@ public class ModelTest {
 
   @Before
   public void setUp() throws Exception {
-    this.model = new Model(getClass().getResource("/test.arpa").getPath());
+    this.model = new Model(Resources.forResource(getClass().getResource("/test.arpa")));
   }
 
   @Test
@@ -23,14 +22,14 @@ public class ModelTest {
 
   @Test
   public void testLoadGzippedArpa() throws Exception {
-    Model model = new Model(getClass().getResource("/test.arpa.gz").getPath());
+    Model model = new Model(Resources.forResource(getClass().getResource("/test.arpa.gz")));
     assertNotNull(model);
     assertEquals(model.getOrder(), 5);
   }
 
   @Test
   public void testLoadProbing() throws Exception {
-    Model model = new Model(getClass().getResource("/test_probing.mmap").getPath());
+    Model model = new Model(Resources.forResource(getClass().getResource("/test_probing.mmap")));
     assertNotNull(model);
     assertEquals(model.getOrder(), 5);
   }
@@ -41,35 +40,35 @@ public class ModelTest {
   // classes in KenLMLoader...
   @Test(expected=Exception.class)
   public void testLoadGzippedProbing()  throws Exception {
-    Model model = new Model(getClass().getResource("/test_probing.mmap.gz").getPath());
+    Model model = new Model(Resources.forResource(getClass().getResource("/test_probing.mmap.gz")));
     assertNotNull(model);
     assertEquals(model.getOrder(), 5);
   }
 
   @Test
   public void testLoadTrie() throws Exception {
-    Model model = new Model(getClass().getResource("/test_trie.mmap").getPath());
+    Model model = new Model(Resources.forResource(getClass().getResource("/test_trie.mmap")));
     assertNotNull(model);
     assertEquals(model.getOrder(), 5);
   }
 
   @Test
   public void testLoadArrayTrie() throws Exception {
-    Model model = new Model(getClass().getResource("/test_array_trie.mmap").getPath());
+    Model model = new Model(Resources.forResource(getClass().getResource("/test_array_trie.mmap")));
     assertNotNull(model);
     assertEquals(model.getOrder(), 5);
   }
 
   @Test
   public void testLoadQuantTrie() throws Exception {
-    Model model = new Model(getClass().getResource("/test_quant_trie.mmap").getPath());
+    Model model = new Model(Resources.forResource(getClass().getResource("/test_quant_trie.mmap")));
     assertNotNull(model);
     assertEquals(model.getOrder(), 5);
   }
 
   @Test
   public void testLoadQuantArrayTrie() throws Exception {
-    Model model = new Model(getClass().getResource("/test_quant_array_trie.mmap").getPath());
+    Model model = new Model(Resources.forResource(getClass().getResource("/test_quant_array_trie.mmap")));
     assertNotNull(model);
     assertEquals(model.getOrder(), 5);
   }
